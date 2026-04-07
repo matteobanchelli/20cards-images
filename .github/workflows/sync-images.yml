@@ -42,7 +42,8 @@ jobs:
           git push
 
       - name: Notify via email
-        if: steps.check.outputs.new_count != '0' && secrets.MAIL_USERNAME != ''
+        if: steps.check.outputs.new_count != '0'
+        continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
