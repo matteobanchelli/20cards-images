@@ -39,10 +39,32 @@ jobs:
           git commit -m "Add ${{ steps.check.outputs.new_count }} new card images"
           git push
 
-      - name: Summary
+      - name: Notify via email
         if: steps.check.outputs.new_count != '0'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "20cards — ${{ steps.check.outputs.new_count }} new card images synced"
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: 20cards Bot <${{ secrets.MAIL_USERNAME }}>
+          body: |
+            ${{ steps.check.outputs.new_count }} new card images have been downloaded and are now live on jsDelivr CDN.
+
+            Commit: https://github.com/matteobanchelli/20cards-images/commits/main
+
+            --- sync output ---
+            $(cat sync-output.txt)
+
+      - name: Summary
         run: |
-          echo "### New card images added: ${{ steps.check.outputs.new_count }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Images are now live on jsDelivr CDN." >> "$GITHUB_STEP_SUMMARY"
-          git log --oneline -1 >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.check.outputs.new_count }}" != "0" ]; then
+            echo "### New card images added: ${{ steps.check.outputs.new_count }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "Images are now live on jsDelivr CDN." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### No new images found" >> "$GITHUB_STEP_SUMMARY"
+            echo "All card images are up to date." >> "$GITHUB_STEP_SUMMARY"
+          fi
