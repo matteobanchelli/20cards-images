@@ -1,0 +1,48 @@
+name: Sync card images
+
+on:
+  schedule:
+    # Run daily at 03:30 UTC (30min after sync-cards cron adds new cards to DB)
+    - cron: "30 3 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download missing images
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          node sync.mjs | tee sync-output.txt
+
+      - name: Check for new images
+        id: check
+        run: |
+          NEW_COUNT=$(git status --porcelain | grep '^\?' | wc -l | tr -d ' ')
+          echo "new_count=$NEW_COUNT" >> "$GITHUB_OUTPUT"
+          echo "Found $NEW_COUNT new images"
+
+      - name: Commit and push
+        if: steps.check.outputs.new_count != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add ${{ steps.check.outputs.new_count }} new card images"
+          git push
+
+      - name: Summary
+        if: steps.check.outputs.new_count != '0'
+        run: |
+          echo "### New card images added: ${{ steps.check.outputs.new_count }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Images are now live on jsDelivr CDN." >> "$GITHUB_STEP_SUMMARY"
+          git log --oneline -1 >> "$GITHUB_STEP_SUMMARY"
