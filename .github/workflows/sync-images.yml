@@ -6,6 +6,9 @@ on:
     - cron: "30 3 * * *"
   workflow_dispatch: # Allow manual trigger
 
+permissions:
+  contents: write
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -14,19 +17,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Download missing images
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          node sync.mjs | tee sync-output.txt
+        run: node sync.mjs
 
       - name: Check for new images
         id: check
         run: |
-          NEW_COUNT=$(git status --porcelain | grep '^\?' | wc -l | tr -d ' ')
+          NEW_COUNT=$(git status --porcelain -- pocket/ | grep '^\?' | wc -l | tr -d ' ')
           echo "new_count=$NEW_COUNT" >> "$GITHUB_OUTPUT"
           echo "Found $NEW_COUNT new images"
 
@@ -35,12 +37,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add pocket/
           git commit -m "Add ${{ steps.check.outputs.new_count }} new card images"
           git push
 
       - name: Notify via email
-        if: steps.check.outputs.new_count != '0'
+        if: steps.check.outputs.new_count != '0' && secrets.MAIL_USERNAME != ''
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -48,16 +50,13 @@ jobs:
           secure: true
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "20cards — ${{ steps.check.outputs.new_count }} new card images synced"
+          subject: "20cards — ${{ steps.check.outputs.new_count }} nuove immagini carte sincronizzate"
           to: ${{ secrets.NOTIFY_EMAIL }}
           from: 20cards Bot <${{ secrets.MAIL_USERNAME }}>
           body: |
-            ${{ steps.check.outputs.new_count }} new card images have been downloaded and are now live on jsDelivr CDN.
+            ${{ steps.check.outputs.new_count }} nuove immagini carte sono state scaricate e sono live su jsDelivr CDN.
 
-            Commit: https://github.com/matteobanchelli/20cards-images/commits/main
-
-            --- sync output ---
-            $(cat sync-output.txt)
+            Vedi commit: https://github.com/matteobanchelli/20cards-images/commits/main
 
       - name: Summary
         run: |
